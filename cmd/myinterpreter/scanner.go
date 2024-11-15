@@ -7,7 +7,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
+	"unicode"
 )
 
 type TokenType string
@@ -33,6 +35,7 @@ const (
 	GreaterEqual TokenType = ">="
 	Slash        TokenType = "/"
 	String       TokenType = "STR"
+	Number       TokenType = "NUM"
 )
 
 var tokenNames = map[TokenType]string{
@@ -56,13 +59,14 @@ var tokenNames = map[TokenType]string{
 	GreaterEqual: "GREATER_EQUAL",
 	Slash:        "SLASH",
 	String:       "STRING",
+	Number:       "NUMBER",
 }
 
 type Token struct {
 	tokenType TokenType
 	line      int
 	lexeme    string
-	literal   string
+	literal   any
 }
 
 func when[A any](cond bool, ok A, otherwise A) A {
@@ -74,11 +78,26 @@ func when[A any](cond bool, ok A, otherwise A) A {
 }
 
 func (t Token) String() string {
-	return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, when(t.literal == "", "null", t.literal))
+	switch t.literal.(type) {
+	case string:
+		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, when(t.literal == "", "null", t.literal))
+	case float64:
+		formatted := strconv.FormatFloat(t.literal.(float64), 'f', -1, 64)
+		if !strings.Contains(formatted, ".") {
+			formatted += ".0"
+		}
+		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, formatted)
+	default:
+		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, t.literal)
+	}
 }
 
 func generateStrToken(line int, literal string) Token {
 	return Token{String, line, literal, strings.ReplaceAll(literal, `"`, "")}
+}
+
+func generateNumberToken(line int, literal float64, lexeme string) Token {
+	return Token{Number, line, lexeme, literal}
 }
 
 func generateToken(tokenType TokenType, line int) Token {
@@ -130,8 +149,8 @@ func isComment(line []byte, col int) bool {
 func getStringLiteral(line []byte, col int) (string, int, error) {
 	builder := strings.Builder{}
 	builder.WriteByte('"')
-	i := col + 1
-	for {
+
+	for i := col + 1; ; i++ {
 		if i >= len(line) || line[i] == '\n' {
 			return "", i - col + 1, UnterminatedStringError
 		}
@@ -142,8 +161,30 @@ func getStringLiteral(line []byte, col int) (string, int, error) {
 		}
 
 		builder.WriteByte(line[i])
-		i++
 	}
+}
+
+func getNumberLiteral(line []byte, col int) (float64, string, int, error) {
+	rawResult := ""
+	i := col
+	func() {
+		for ; i < len(line); i++ {
+			switch {
+			case unicode.IsDigit(rune(line[i])):
+				rawResult += string(line[i])
+			case line[i] == '.' && !strings.Contains(rawResult, "."):
+				rawResult += string(line[i])
+			default:
+				return
+			}
+		}
+	}()
+
+	result, err := strconv.ParseFloat(rawResult, 64)
+	if err != nil {
+		return 0.0, rawResult, i - col, errors.New("error converting target to number")
+	}
+	return result, rawResult, i - col, nil
 }
 
 func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
@@ -210,6 +251,12 @@ func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
 			return Token{}, count, err
 		}
 		return generateStrToken(lineNumber, str), count, nil
+	case '1', '2', '3', '4', '5', '6', '7', '8', '9', '0':
+		number, lexeme, count, err := getNumberLiteral(line, col)
+		if err != nil {
+			return Token{}, count, err
+		}
+		return generateNumberToken(lineNumber, number, lexeme), count, nil
 	default:
 		return Token{}, 1, UnexpectedTokenError
 	}
