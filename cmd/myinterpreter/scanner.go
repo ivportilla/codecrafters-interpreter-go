@@ -36,6 +36,7 @@ const (
 	Slash        TokenType = "/"
 	String       TokenType = "STR"
 	Number       TokenType = "NUM"
+	Identifier   TokenType = "ID"
 )
 
 var tokenNames = map[TokenType]string{
@@ -60,6 +61,7 @@ var tokenNames = map[TokenType]string{
 	Slash:        "SLASH",
 	String:       "STRING",
 	Number:       "NUMBER",
+	Identifier:   "IDENTIFIER",
 }
 
 type Token struct {
@@ -98,6 +100,10 @@ func generateStrToken(line int, literal string) Token {
 
 func generateNumberToken(line int, literal float64, lexeme string) Token {
 	return Token{Number, line, lexeme, literal}
+}
+
+func generateIdentifierToken(line int, lexeme string) Token {
+	return Token{Identifier, line, lexeme, ""}
 }
 
 func generateToken(tokenType TokenType, line int) Token {
@@ -187,76 +193,100 @@ func getNumberLiteral(line []byte, col int) (float64, string, int, error) {
 	return result, rawResult, i - col, nil
 }
 
+func getIdentifier(line []byte, col int) (string, int) {
+	i := col
+	builder := strings.Builder{}
+	func() {
+		for ; i < len(line); i++ {
+			switch {
+			case unicode.IsDigit(rune(line[i])):
+				builder.WriteByte(line[i])
+			case line[i] == '_':
+				builder.WriteByte(line[i])
+			case unicode.IsLetter(rune(line[i])):
+				builder.WriteByte(line[i])
+			default:
+				return
+			}
+		}
+	}()
+
+	return builder.String(), i - col
+}
+
 func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
-	switch line[col] {
-	case '(':
+	switch {
+	case line[col] == '(':
 		token := generateToken(LeftParen, lineNumber)
 		return token, 1, nil
-	case ')':
+	case line[col] == ')':
 		token := generateToken(RightParen, lineNumber)
 		return token, 1, nil
-	case '{':
+	case line[col] == '{':
 		token := generateToken(LeftBrace, lineNumber)
 		return token, 1, nil
-	case '}':
+	case line[col] == '}':
 		token := generateToken(RightBrace, lineNumber)
 		return token, 1, nil
-	case '*':
+	case line[col] == '*':
 		token := generateToken(Star, lineNumber)
 		return token, 1, nil
-	case '.':
+	case line[col] == '.':
 		token := generateToken(Dot, lineNumber)
 		return token, 1, nil
-	case ',':
+	case line[col] == ',':
 		token := generateToken(Comma, lineNumber)
 		return token, 1, nil
-	case '+':
+	case line[col] == '+':
 		token := generateToken(Plus, lineNumber)
 		return token, 1, nil
-	case '-':
+	case line[col] == '-':
 		token := generateToken(Minus, lineNumber)
 		return token, 1, nil
-	case ';':
+	case line[col] == ';':
 		token := generateToken(Semicolon, lineNumber)
 		return token, 1, nil
-	case '=':
+	case line[col] == '=':
 		token, err := getTokenByType(line, lineNumber, col, EqualEqual)
 		if err != nil {
 			return generateToken(Equal, lineNumber), 1, nil
 		}
 		return token, len(token.lexeme), nil
-	case '!':
+	case line[col] == '!':
 		token, err := getTokenByType(line, lineNumber, col, BangEqual)
 		if err != nil {
 			return generateToken(Bang, lineNumber), 1, nil
 		}
 		return token, len(token.lexeme), nil
-	case '<':
+	case line[col] == '<':
 		token, err := getTokenByType(line, lineNumber, col, LessEqual)
 		if err != nil {
 			return generateToken(Less, lineNumber), 1, nil
 		}
 		return token, len(token.lexeme), nil
-	case '>':
+	case line[col] == '>':
 		token, err := getTokenByType(line, lineNumber, col, GreaterEqual)
 		if err != nil {
 			return generateToken(Greater, lineNumber), 1, nil
 		}
 		return token, len(token.lexeme), nil
-	case '/':
+	case line[col] == '/':
 		return generateToken(Slash, lineNumber), 1, nil
-	case '"':
+	case line[col] == '"':
 		str, count, err := getStringLiteral(line, col)
 		if err != nil {
 			return Token{}, count, err
 		}
 		return generateStrToken(lineNumber, str), count, nil
-	case '1', '2', '3', '4', '5', '6', '7', '8', '9', '0':
+	case unicode.IsDigit(rune(line[col])):
 		number, lexeme, count, err := getNumberLiteral(line, col)
 		if err != nil {
 			return Token{}, count, err
 		}
 		return generateNumberToken(lineNumber, number, lexeme), count, nil
+	case unicode.IsLetter(rune(line[col])) || line[col] == '_':
+		identifier, count := getIdentifier(line, col)
+		return generateIdentifierToken(lineNumber, identifier), count, nil
 	default:
 		return Token{}, 1, UnexpectedTokenError
 	}
