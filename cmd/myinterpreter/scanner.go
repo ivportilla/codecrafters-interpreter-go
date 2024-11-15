@@ -30,6 +30,7 @@ const (
 	LessEqual    TokenType = "<="
 	Greater      TokenType = ">"
 	GreaterEqual TokenType = ">="
+	Slash        TokenType = "/"
 )
 
 var tokenNames = map[TokenType]string{
@@ -51,6 +52,7 @@ var tokenNames = map[TokenType]string{
 	LessEqual:    "LESS_EQUAL",
 	Greater:      "GREATER",
 	GreaterEqual: "GREATER_EQUAL",
+	Slash:        "SLASH",
 }
 
 type Token struct {
@@ -86,6 +88,18 @@ func getTokenByType(line []byte, lineNumber int, col int, target TokenType) (Tok
 	}
 
 	return generateToken(target, lineNumber), nil
+}
+
+func matchNextChar(line []byte, col int, target byte) bool {
+	if col+1 >= len(line) {
+		return false
+	}
+
+	return line[col+1] == target
+}
+
+func countSkipLineComment(line []byte, col int) int {
+	return len(line) - col
 }
 
 func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
@@ -144,6 +158,9 @@ func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
 			return generateToken(Greater, lineNumber), 1, nil
 		}
 		return token, len(token.lexeme), nil
+	case '/':
+		return generateToken(Slash, lineNumber), 1, nil
+
 	default:
 		return Token{}, 1, UnexpectedTokenError
 	}
@@ -159,6 +176,12 @@ func scan(reader *bufio.Reader) {
 		}
 
 		for col := 0; col < len(line); {
+			// Handle line comments
+			if line[col] == '/' && matchNextChar(line, col, '/') {
+				col += countSkipLineComment(line, col)
+				continue
+			}
+
 			token, count, errToken := getToken(line, lineNumber, col)
 			if errToken != nil {
 				if errors.Is(errToken, UnexpectedTokenError) {
