@@ -102,6 +102,14 @@ func countSkipLineComment(line []byte, col int) int {
 	return len(line) - col
 }
 
+func isSpace(c byte) bool {
+	return c == ' ' || c == '\t'
+}
+
+func isComment(line []byte, col int) bool {
+	return line[col] == '/' && matchNextChar(line, col, '/')
+}
+
 func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
 	switch line[col] {
 	case '(':
@@ -177,8 +185,15 @@ func scan(reader *bufio.Reader) {
 
 		for col := 0; col < len(line); {
 			// Handle line comments
-			if line[col] == '/' && matchNextChar(line, col, '/') {
+			if isComment(line, col) {
 				col += countSkipLineComment(line, col)
+				continue
+			}
+
+			// Handle spaces
+			if isSpace(line[col]) {
+				fmt.Printf("space: %d", line[col])
+				col++
 				continue
 			}
 
