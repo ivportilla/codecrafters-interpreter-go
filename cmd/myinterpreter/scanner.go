@@ -24,6 +24,8 @@ const (
 	Semicolon  TokenType = ";"
 	Equal      TokenType = "="
 	EqualEqual TokenType = "=="
+	Bang       TokenType = "!"
+	BangEqual  TokenType = "!="
 )
 
 var tokenNames = map[TokenType]string{
@@ -39,6 +41,8 @@ var tokenNames = map[TokenType]string{
 	Semicolon:  "SEMICOLON",
 	Equal:      "EQUAL",
 	EqualEqual: "EQUAL_EQUAL",
+	Bang:       "BANG",
+	BangEqual:  "BANG_EQUAL",
 }
 
 type Token struct {
@@ -109,6 +113,14 @@ func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
 			return token, 2, nil
 		}
 		token = generateToken(Equal, lineNumber)
+		return token, 1, nil
+	case '!':
+		var token Token
+		if matchNext(line, col, '=') {
+			token = generateToken(BangEqual, lineNumber)
+			return token, 2, nil
+		}
+		token = generateToken(Bang, lineNumber)
 		return token, 1, nil
 	default:
 		return Token{}, 1, UnexpectedTokenError
