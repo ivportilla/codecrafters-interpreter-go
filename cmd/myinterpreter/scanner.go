@@ -103,7 +103,7 @@ func countSkipLineComment(line []byte, col int) int {
 }
 
 func isSpace(c byte) bool {
-	return c == ' ' || c == '\t'
+	return c == ' ' || c == '\t' || c == '\n'
 }
 
 func isComment(line []byte, col int) bool {
@@ -192,7 +192,6 @@ func scan(reader *bufio.Reader) {
 
 			// Handle spaces
 			if isSpace(line[col]) {
-				fmt.Printf("space: %d", line[col])
 				col++
 				continue
 			}
