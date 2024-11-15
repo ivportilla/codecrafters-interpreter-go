@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 )
@@ -19,15 +20,16 @@ func main() {
 	}
 
 	filename := os.Args[2]
-	fileContents, err := os.ReadFile(filename)
+	file, err := os.Open(filename)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
 		os.Exit(1)
 	}
 
-	if len(fileContents) > 0 {
-		scan(fileContents)
+	reader := bufio.NewReader(file)
+	if data, _ := reader.Peek(1); len(data) > 0 {
+		scan(reader)
 	} else {
-		fmt.Println("EOF  null") // Placeholder, remove this line when implementing the scanner
+		fmt.Println("EOF  null")
 	}
 }

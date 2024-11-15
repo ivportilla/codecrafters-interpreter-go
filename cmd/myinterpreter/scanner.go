@@ -1,6 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"log"
+)
 
 type TokenType string
 
@@ -9,6 +14,12 @@ const (
 	RightParen TokenType = ")"
 	LeftBrace  TokenType = "{"
 	RightBrace TokenType = "}"
+	Star       TokenType = "*"
+	Comma      TokenType = ","
+	Plus       TokenType = "+"
+	Dot        TokenType = "."
+	Minus      TokenType = "-"
+	Semicolon  TokenType = ";"
 )
 
 var tokenNames = map[TokenType]string{
@@ -16,6 +27,12 @@ var tokenNames = map[TokenType]string{
 	RightParen: "RIGHT_PAREN",
 	LeftBrace:  "LEFT_BRACE",
 	RightBrace: "RIGHT_BRACE",
+	Star:       "STAR",
+	Dot:        "DOT",
+	Comma:      "COMMA",
+	Plus:       "PLUS",
+	Minus:      "MINUS",
+	Semicolon:  "SEMICOLON",
 }
 
 type Token struct {
@@ -32,24 +49,56 @@ func generateToken(tokenType TokenType, line int) Token {
 	return Token{tokenType, line, string(tokenType)}
 }
 
-func scan(fileContents []byte) {
+func scan(reader *bufio.Reader) {
 	tokens := make([]Token, 0)
-	for i, char := range fileContents {
-		switch char {
-		case '(':
-			token := Token{tokenType: LeftParen, line: i, lexeme: string(LeftParen)}
-			tokens = append(tokens, token)
-		case ')':
-			token := Token{tokenType: RightParen, line: i, lexeme: string(RightParen)}
-			tokens = append(tokens, token)
-		case '{':
-			token := generateToken(LeftBrace, i)
-			tokens = append(tokens, token)
-		case '}':
-			token := generateToken(RightBrace, i)
-			tokens = append(tokens, token)
+	for i := 1; ; {
+		bytes, err := reader.ReadBytes('\n')
+		if err != nil && err != io.EOF {
+			log.Fatalf("Error reading line: %v", err)
 		}
-		fmt.Println(tokens[len(tokens)-1].String())
+
+		for _, current := range bytes {
+			switch current {
+			case '(':
+				token := generateToken(LeftParen, i)
+				tokens = append(tokens, token)
+			case ')':
+				token := generateToken(RightParen, i)
+				tokens = append(tokens, token)
+			case '{':
+				token := generateToken(LeftBrace, i)
+				tokens = append(tokens, token)
+			case '}':
+				token := generateToken(RightBrace, i)
+				tokens = append(tokens, token)
+			case '*':
+				token := generateToken(Star, i)
+				tokens = append(tokens, token)
+			case '.':
+				token := generateToken(Dot, i)
+				tokens = append(tokens, token)
+			case ',':
+				token := generateToken(Comma, i)
+				tokens = append(tokens, token)
+			case '+':
+				token := generateToken(Plus, i)
+				tokens = append(tokens, token)
+			case '-':
+				token := generateToken(Minus, i)
+				tokens = append(tokens, token)
+			case ';':
+				token := generateToken(Semicolon, i)
+				tokens = append(tokens, token)
+			}
+			fmt.Println(tokens[len(tokens)-1].String())
+		}
+
+		if err == io.EOF {
+			fmt.Println("EOF  null")
+			break
+		}
+
+		// Next line
+		i++
 	}
-	fmt.Println("EOF  null")
 }
