@@ -12,37 +12,45 @@ import (
 type TokenType string
 
 const (
-	LeftParen  TokenType = "("
-	RightParen TokenType = ")"
-	LeftBrace  TokenType = "{"
-	RightBrace TokenType = "}"
-	Star       TokenType = "*"
-	Comma      TokenType = ","
-	Plus       TokenType = "+"
-	Dot        TokenType = "."
-	Minus      TokenType = "-"
-	Semicolon  TokenType = ";"
-	Equal      TokenType = "="
-	EqualEqual TokenType = "=="
-	Bang       TokenType = "!"
-	BangEqual  TokenType = "!="
+	LeftParen    TokenType = "("
+	RightParen   TokenType = ")"
+	LeftBrace    TokenType = "{"
+	RightBrace   TokenType = "}"
+	Star         TokenType = "*"
+	Comma        TokenType = ","
+	Plus         TokenType = "+"
+	Dot          TokenType = "."
+	Minus        TokenType = "-"
+	Semicolon    TokenType = ";"
+	Equal        TokenType = "="
+	EqualEqual   TokenType = "=="
+	Bang         TokenType = "!"
+	BangEqual    TokenType = "!="
+	Less         TokenType = "<"
+	LessEqual    TokenType = "<="
+	Greater      TokenType = ">"
+	GreaterEqual TokenType = ">="
 )
 
 var tokenNames = map[TokenType]string{
-	LeftParen:  "LEFT_PAREN",
-	RightParen: "RIGHT_PAREN",
-	LeftBrace:  "LEFT_BRACE",
-	RightBrace: "RIGHT_BRACE",
-	Star:       "STAR",
-	Dot:        "DOT",
-	Comma:      "COMMA",
-	Plus:       "PLUS",
-	Minus:      "MINUS",
-	Semicolon:  "SEMICOLON",
-	Equal:      "EQUAL",
-	EqualEqual: "EQUAL_EQUAL",
-	Bang:       "BANG",
-	BangEqual:  "BANG_EQUAL",
+	LeftParen:    "LEFT_PAREN",
+	RightParen:   "RIGHT_PAREN",
+	LeftBrace:    "LEFT_BRACE",
+	RightBrace:   "RIGHT_BRACE",
+	Star:         "STAR",
+	Dot:          "DOT",
+	Comma:        "COMMA",
+	Plus:         "PLUS",
+	Minus:        "MINUS",
+	Semicolon:    "SEMICOLON",
+	Equal:        "EQUAL",
+	EqualEqual:   "EQUAL_EQUAL",
+	Bang:         "BANG",
+	BangEqual:    "BANG_EQUAL",
+	Less:         "LESS",
+	LessEqual:    "LESS_EQUAL",
+	Greater:      "GREATER",
+	GreaterEqual: "GREATER_EQUAL",
 }
 
 type Token struct {
@@ -64,15 +72,21 @@ func reportError(line int, input string) {
 	fmt.Fprintf(os.Stderr, "[line %d] Error: Unexpected character: %s\n", line, input)
 }
 
-func matchNext(line []byte, pos int, char byte) bool {
-	if pos+1 >= len(line) {
-		return false
+var UnexpectedTokenError = errors.New("unexpected token")
+
+func getTokenByType(line []byte, lineNumber int, col int, target TokenType) (Token, error) {
+	for i := 0; i < len(target); i++ {
+		if col+i >= len(line) {
+			return Token{}, UnexpectedTokenError
+		}
+
+		if line[col+i] != target[i] {
+			return Token{}, UnexpectedTokenError
+		}
 	}
 
-	return line[pos+1] == char
+	return generateToken(target, lineNumber), nil
 }
-
-var UnexpectedTokenError = errors.New("unexpected token")
 
 func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
 	switch line[col] {
@@ -107,21 +121,29 @@ func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
 		token := generateToken(Semicolon, lineNumber)
 		return token, 1, nil
 	case '=':
-		var token Token
-		if matchNext(line, col, '=') {
-			token = generateToken(EqualEqual, lineNumber)
-			return token, 2, nil
+		token, err := getTokenByType(line, lineNumber, col, EqualEqual)
+		if err != nil {
+			return generateToken(Equal, lineNumber), 1, nil
 		}
-		token = generateToken(Equal, lineNumber)
-		return token, 1, nil
+		return token, len(token.lexeme), nil
 	case '!':
-		var token Token
-		if matchNext(line, col, '=') {
-			token = generateToken(BangEqual, lineNumber)
-			return token, 2, nil
+		token, err := getTokenByType(line, lineNumber, col, BangEqual)
+		if err != nil {
+			return generateToken(Bang, lineNumber), 1, nil
 		}
-		token = generateToken(Bang, lineNumber)
-		return token, 1, nil
+		return token, len(token.lexeme), nil
+	case '<':
+		token, err := getTokenByType(line, lineNumber, col, LessEqual)
+		if err != nil {
+			return generateToken(Less, lineNumber), 1, nil
+		}
+		return token, len(token.lexeme), nil
+	case '>':
+		token, err := getTokenByType(line, lineNumber, col, GreaterEqual)
+		if err != nil {
+			return generateToken(Greater, lineNumber), 1, nil
+		}
+		return token, len(token.lexeme), nil
 	default:
 		return Token{}, 1, UnexpectedTokenError
 	}
