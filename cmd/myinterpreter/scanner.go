@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 )
 
 type TokenType string
@@ -49,7 +50,13 @@ func generateToken(tokenType TokenType, line int) Token {
 	return Token{tokenType, line, string(tokenType)}
 }
 
+// TODO: handle more kind of errors
+func reportError(line int, input string) {
+	fmt.Fprintf(os.Stderr, "[line %d] Error: Unexpected character: %s\n", line, input)
+}
+
 func scan(reader *bufio.Reader) {
+	hasErrors := false
 	tokens := make([]Token, 0)
 	for i := 1; ; {
 		bytes, err := reader.ReadBytes('\n')
@@ -89,8 +96,15 @@ func scan(reader *bufio.Reader) {
 			case ';':
 				token := generateToken(Semicolon, i)
 				tokens = append(tokens, token)
+			default:
+				reportError(i, string(current))
+				hasErrors = true
+				continue
 			}
-			fmt.Println(tokens[len(tokens)-1].String())
+
+			if len(tokens) > 0 {
+				fmt.Println(tokens[len(tokens)-1].String())
+			}
 		}
 
 		if err == io.EOF {
@@ -100,5 +114,9 @@ func scan(reader *bufio.Reader) {
 
 		// Next line
 		i++
+	}
+
+	if hasErrors {
+		os.Exit(65)
 	}
 }
