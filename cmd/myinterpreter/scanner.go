@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -21,6 +22,8 @@ const (
 	Dot        TokenType = "."
 	Minus      TokenType = "-"
 	Semicolon  TokenType = ";"
+	Equal      TokenType = "="
+	EqualEqual TokenType = "=="
 )
 
 var tokenNames = map[TokenType]string{
@@ -34,6 +37,8 @@ var tokenNames = map[TokenType]string{
 	Plus:       "PLUS",
 	Minus:      "MINUS",
 	Semicolon:  "SEMICOLON",
+	Equal:      "EQUAL",
+	EqualEqual: "EQUAL_EQUAL",
 }
 
 type Token struct {
@@ -55,65 +60,96 @@ func reportError(line int, input string) {
 	fmt.Fprintf(os.Stderr, "[line %d] Error: Unexpected character: %s\n", line, input)
 }
 
+func matchNext(line []byte, pos int, char byte) bool {
+	if pos+1 >= len(line) {
+		return false
+	}
+
+	return line[pos+1] == char
+}
+
+var UnexpectedTokenError = errors.New("unexpected token")
+
+func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
+	switch line[col] {
+	case '(':
+		token := generateToken(LeftParen, lineNumber)
+		return token, 1, nil
+	case ')':
+		token := generateToken(RightParen, lineNumber)
+		return token, 1, nil
+	case '{':
+		token := generateToken(LeftBrace, lineNumber)
+		return token, 1, nil
+	case '}':
+		token := generateToken(RightBrace, lineNumber)
+		return token, 1, nil
+	case '*':
+		token := generateToken(Star, lineNumber)
+		return token, 1, nil
+	case '.':
+		token := generateToken(Dot, lineNumber)
+		return token, 1, nil
+	case ',':
+		token := generateToken(Comma, lineNumber)
+		return token, 1, nil
+	case '+':
+		token := generateToken(Plus, lineNumber)
+		return token, 1, nil
+	case '-':
+		token := generateToken(Minus, lineNumber)
+		return token, 1, nil
+	case ';':
+		token := generateToken(Semicolon, lineNumber)
+		return token, 1, nil
+	case '=':
+		var token Token
+		if matchNext(line, col, '=') {
+			token = generateToken(EqualEqual, lineNumber)
+			return token, 2, nil
+		}
+		token = generateToken(Equal, lineNumber)
+		return token, 1, nil
+	default:
+		return Token{}, 1, UnexpectedTokenError
+	}
+}
+
 func scan(reader *bufio.Reader) {
 	hasErrors := false
 	tokens := make([]Token, 0)
-	for i := 1; ; {
-		bytes, err := reader.ReadBytes('\n')
+	for lineNumber := 1; ; {
+		line, err := reader.ReadBytes('\n')
 		if err != nil && err != io.EOF {
 			log.Fatalf("Error reading line: %v", err)
 		}
 
-		for _, current := range bytes {
-			switch current {
-			case '(':
-				token := generateToken(LeftParen, i)
-				tokens = append(tokens, token)
-			case ')':
-				token := generateToken(RightParen, i)
-				tokens = append(tokens, token)
-			case '{':
-				token := generateToken(LeftBrace, i)
-				tokens = append(tokens, token)
-			case '}':
-				token := generateToken(RightBrace, i)
-				tokens = append(tokens, token)
-			case '*':
-				token := generateToken(Star, i)
-				tokens = append(tokens, token)
-			case '.':
-				token := generateToken(Dot, i)
-				tokens = append(tokens, token)
-			case ',':
-				token := generateToken(Comma, i)
-				tokens = append(tokens, token)
-			case '+':
-				token := generateToken(Plus, i)
-				tokens = append(tokens, token)
-			case '-':
-				token := generateToken(Minus, i)
-				tokens = append(tokens, token)
-			case ';':
-				token := generateToken(Semicolon, i)
-				tokens = append(tokens, token)
-			default:
-				reportError(i, string(current))
-				hasErrors = true
-				continue
+		for col := 0; col < len(line); {
+			token, count, errToken := getToken(line, lineNumber, col)
+			if errToken != nil {
+				if errors.Is(errToken, UnexpectedTokenError) {
+					reportError(lineNumber, string(line[col]))
+					hasErrors = true
+					col += count
+					continue
+				}
+
+				log.Fatalf("Unexpected error: %v", errToken)
 			}
 
-			if len(tokens) > 0 {
-				fmt.Println(tokens[len(tokens)-1].String())
-			}
+			fmt.Println(token.String())
+			tokens = append(tokens, token)
+			col += count
 		}
 
+		// Check if EOF
 		if err == io.EOF {
 			fmt.Println("EOF  null")
 			break
 		}
 
 		// Next line
-		i++
+		lineNumber++
 	}
 
 	if hasErrors {
