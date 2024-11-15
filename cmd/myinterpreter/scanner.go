@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 )
 
 type TokenType string
@@ -31,6 +32,7 @@ const (
 	Greater      TokenType = ">"
 	GreaterEqual TokenType = ">="
 	Slash        TokenType = "/"
+	String       TokenType = "STR"
 )
 
 var tokenNames = map[TokenType]string{
@@ -53,28 +55,43 @@ var tokenNames = map[TokenType]string{
 	Greater:      "GREATER",
 	GreaterEqual: "GREATER_EQUAL",
 	Slash:        "SLASH",
+	String:       "STRING",
 }
 
 type Token struct {
 	tokenType TokenType
 	line      int
 	lexeme    string
+	literal   string
+}
+
+func when[A any](cond bool, ok A, otherwise A) A {
+	if cond {
+		return ok
+	} else {
+		return otherwise
+	}
 }
 
 func (t Token) String() string {
-	return fmt.Sprintf("%s %s null", tokenNames[t.tokenType], t.lexeme)
+	return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, when(t.literal == "", "null", t.literal))
+}
+
+func generateStrToken(line int, literal string) Token {
+	return Token{String, line, literal, strings.ReplaceAll(literal, `"`, "")}
 }
 
 func generateToken(tokenType TokenType, line int) Token {
-	return Token{tokenType, line, string(tokenType)}
+	return Token{tokenType, line, string(tokenType), ""}
 }
 
 // TODO: handle more kind of errors
-func reportError(line int, input string) {
-	fmt.Fprintf(os.Stderr, "[line %d] Error: Unexpected character: %s\n", line, input)
+func reportError(line int, error string) {
+	fmt.Fprintf(os.Stderr, "[line %d] Error: %s\n", line, error)
 }
 
 var UnexpectedTokenError = errors.New("unexpected token")
+var UnterminatedStringError = errors.New("unterminated string")
 
 func getTokenByType(line []byte, lineNumber int, col int, target TokenType) (Token, error) {
 	for i := 0; i < len(target); i++ {
@@ -108,6 +125,25 @@ func isSpace(c byte) bool {
 
 func isComment(line []byte, col int) bool {
 	return line[col] == '/' && matchNextChar(line, col, '/')
+}
+
+func getStringLiteral(line []byte, col int) (string, int, error) {
+	builder := strings.Builder{}
+	builder.WriteByte('"')
+	i := col + 1
+	for {
+		if i >= len(line) || line[i] == '\n' {
+			return "", i - col + 1, UnterminatedStringError
+		}
+
+		if line[i] == '"' {
+			builder.WriteByte('"')
+			return builder.String(), i - col + 1, nil
+		}
+
+		builder.WriteByte(line[i])
+		i++
+	}
 }
 
 func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
@@ -168,7 +204,12 @@ func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
 		return token, len(token.lexeme), nil
 	case '/':
 		return generateToken(Slash, lineNumber), 1, nil
-
+	case '"':
+		str, count, err := getStringLiteral(line, col)
+		if err != nil {
+			return Token{}, count, err
+		}
+		return generateStrToken(lineNumber, str), count, nil
 	default:
 		return Token{}, 1, UnexpectedTokenError
 	}
@@ -199,7 +240,14 @@ func scan(reader *bufio.Reader) {
 			token, count, errToken := getToken(line, lineNumber, col)
 			if errToken != nil {
 				if errors.Is(errToken, UnexpectedTokenError) {
-					reportError(lineNumber, string(line[col]))
+					reportError(lineNumber, fmt.Sprintf("Unexpected character: %s", string(line[col])))
+					hasErrors = true
+					col += count
+					continue
+				}
+
+				if errors.Is(errToken, UnterminatedStringError) {
+					reportError(lineNumber, "Unterminated string.")
 					hasErrors = true
 					col += count
 					continue
