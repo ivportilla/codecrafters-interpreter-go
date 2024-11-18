@@ -37,6 +37,7 @@ const (
 	String       TokenType = "STR"
 	Number       TokenType = "NUM"
 	Identifier   TokenType = "ID"
+	Keyword      TokenType = "KEYWORD"
 )
 
 var tokenNames = map[TokenType]string{
@@ -62,6 +63,26 @@ var tokenNames = map[TokenType]string{
 	String:       "STRING",
 	Number:       "NUMBER",
 	Identifier:   "IDENTIFIER",
+	Keyword:      "KEYWORD",
+}
+
+var keywords = map[string]interface{}{
+	"and":    struct{}{},
+	"class":  struct{}{},
+	"else":   struct{}{},
+	"false":  struct{}{},
+	"for":    struct{}{},
+	"fun":    struct{}{},
+	"if":     struct{}{},
+	"nil":    struct{}{},
+	"or":     struct{}{},
+	"print":  struct{}{},
+	"return": struct{}{},
+	"super":  struct{}{},
+	"this":   struct{}{},
+	"true":   struct{}{},
+	"var":    struct{}{},
+	"while":  struct{}{},
 }
 
 type Token struct {
@@ -80,17 +101,19 @@ func when[A any](cond bool, ok A, otherwise A) A {
 }
 
 func (t Token) String() string {
-	switch t.literal.(type) {
-	case string:
-		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, when(t.literal == "", "null", t.literal))
-	case float64:
+	switch t.tokenType {
+	case Number:
 		formatted := strconv.FormatFloat(t.literal.(float64), 'f', -1, 64)
 		if !strings.Contains(formatted, ".") {
 			formatted += ".0"
 		}
 		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, formatted)
+	case Identifier:
+		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, when(t.literal == nil, "null", t.literal))
+	case Keyword:
+		return fmt.Sprintf("%s %s %s", strings.ToUpper(t.lexeme), t.lexeme, when(t.literal == nil, "null", t.literal))
 	default:
-		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, t.literal)
+		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, when(t.literal == nil, "null", t.literal))
 	}
 }
 
@@ -103,14 +126,17 @@ func generateNumberToken(line int, literal float64, lexeme string) Token {
 }
 
 func generateIdentifierToken(line int, lexeme string) Token {
-	return Token{Identifier, line, lexeme, ""}
+	return Token{Identifier, line, lexeme, nil}
+}
+
+func generateKeywordToken(line int, lexeme string) Token {
+	return Token{Keyword, line, lexeme, nil}
 }
 
 func generateToken(tokenType TokenType, line int) Token {
-	return Token{tokenType, line, string(tokenType), ""}
+	return Token{tokenType, line, string(tokenType), nil}
 }
 
-// TODO: handle more kind of errors
 func reportError(line int, error string) {
 	fmt.Fprintf(os.Stderr, "[line %d] Error: %s\n", line, error)
 }
@@ -285,8 +311,12 @@ func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
 		}
 		return generateNumberToken(lineNumber, number, lexeme), count, nil
 	case unicode.IsLetter(rune(line[col])) || line[col] == '_':
-		identifier, count := getIdentifier(line, col)
-		return generateIdentifierToken(lineNumber, identifier), count, nil
+		target, count := getIdentifier(line, col)
+		if _, isKeyword := keywords[target]; isKeyword {
+			return generateKeywordToken(lineNumber, target), count, nil
+		}
+
+		return generateIdentifierToken(lineNumber, target), count, nil
 	default:
 		return Token{}, 1, UnexpectedTokenError
 	}
