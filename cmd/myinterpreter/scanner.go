@@ -38,6 +38,7 @@ const (
 	Number       TokenType = "NUM"
 	Identifier   TokenType = "ID"
 	Keyword      TokenType = "KEYWORD"
+	EOF          TokenType = "EOF"
 )
 
 var tokenNames = map[TokenType]string{
@@ -64,6 +65,7 @@ var tokenNames = map[TokenType]string{
 	Number:       "NUMBER",
 	Identifier:   "IDENTIFIER",
 	Keyword:      "KEYWORD",
+	EOF:          "EOF",
 }
 
 var keywords = map[string]interface{}{
@@ -112,9 +114,15 @@ func (t Token) String() string {
 		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, when(t.literal == nil, "null", t.literal))
 	case Keyword:
 		return fmt.Sprintf("%s %s %s", strings.ToUpper(t.lexeme), t.lexeme, when(t.literal == nil, "null", t.literal))
+	case EOF:
+		return fmt.Sprintf("%s %s %s", strings.ToUpper(t.lexeme), "", when(t.literal == nil, "null", t.literal))
 	default:
 		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, when(t.literal == nil, "null", t.literal))
 	}
+}
+
+func generateEOFToken(line int) Token {
+	return Token{EOF, line, "EOF", nil}
 }
 
 func generateStrToken(line int, literal string) Token {
@@ -322,13 +330,16 @@ func getToken(line []byte, lineNumber int, col int) (Token, int, error) {
 	}
 }
 
-func scan(reader *bufio.Reader) {
+var TokenScanError = errors.New("token scan error")
+
+func scan(reader *bufio.Reader) ([]Token, error) {
 	hasErrors := false
 	tokens := make([]Token, 0)
 	for lineNumber := 1; ; {
 		line, err := reader.ReadBytes('\n')
 		if err != nil && err != io.EOF {
-			log.Fatalf("Error reading line: %v", err)
+			log.Printf("Error reading line: %v\n", err)
+			return nil, fmt.Errorf("error reading line: %w", err)
 		}
 
 		for col := 0; col < len(line); {
@@ -360,17 +371,18 @@ func scan(reader *bufio.Reader) {
 					continue
 				}
 
-				log.Fatalf("Unexpected error: %v", errToken)
+				log.Printf("Unexpected error: %v", errToken)
+				return nil, fmt.Errorf("unexpected error processing token: %w", err)
 			}
 
-			fmt.Println(token.String())
+			//fmt.Println(token.String())
 			tokens = append(tokens, token)
 			col += count
 		}
 
 		// Check if EOF
 		if err == io.EOF {
-			fmt.Println("EOF  null")
+			tokens = append(tokens, generateEOFToken(lineNumber))
 			break
 		}
 
@@ -379,6 +391,8 @@ func scan(reader *bufio.Reader) {
 	}
 
 	if hasErrors {
-		os.Exit(65)
+		return tokens, TokenScanError
 	}
+
+	return tokens, nil
 }
