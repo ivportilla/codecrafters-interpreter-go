@@ -102,14 +102,18 @@ func when[A any](cond bool, ok A, otherwise A) A {
 	}
 }
 
+func formatFloatNumber(value float64) string {
+	formatted := strconv.FormatFloat(value, 'f', -1, 64)
+	if !strings.Contains(formatted, ".") {
+		formatted += ".0"
+	}
+	return formatted
+}
+
 func (t Token) String() string {
 	switch t.tokenType {
 	case Number:
-		formatted := strconv.FormatFloat(t.literal.(float64), 'f', -1, 64)
-		if !strings.Contains(formatted, ".") {
-			formatted += ".0"
-		}
-		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, formatted)
+		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, formatFloatNumber(t.literal.(float64)))
 	case Identifier:
 		return fmt.Sprintf("%s %s %s", tokenNames[t.tokenType], t.lexeme, when(t.literal == nil, "null", t.literal))
 	case Keyword:

@@ -11,6 +11,9 @@ type Expr interface {
 type Boolean struct {
 	Value bool
 }
+type NumberLit struct {
+	Value float64
+}
 type Nil struct{}
 
 func NewNil() Expr {
@@ -20,6 +23,8 @@ func NewNil() Expr {
 func NewBoolean(value bool) Expr {
 	return &Boolean{value}
 }
+
+func NewNumberLit(value float64) Expr { return &NumberLit{value} }
 
 func NewLiteral(token Token) (Expr, error) {
 	switch token.tokenType {
@@ -34,6 +39,8 @@ func NewLiteral(token Token) (Expr, error) {
 		default:
 			return nil, fmt.Errorf("unsupported keyword type: %s", token.lexeme)
 		}
+	case Number:
+		return NewNumberLit(token.literal.(float64)), nil
 	default:
 		return nil, fmt.Errorf("unsupported token type: %s", token.lexeme)
 	}
@@ -46,6 +53,8 @@ func (boolExpr *Boolean) Print() string {
 func (nilExpr *Nil) Print() string {
 	return "nil"
 }
+
+func (numberExpr *NumberLit) Print() string { return formatFloatNumber(numberExpr.Value) }
 
 func printAST(expr Expr) string {
 	return expr.Print()
