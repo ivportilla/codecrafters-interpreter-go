@@ -14,6 +14,9 @@ type Boolean struct {
 type NumberLit struct {
 	Value float64
 }
+type StringLit struct {
+	Value string
+}
 type Nil struct{}
 
 func NewNil() Expr {
@@ -25,6 +28,8 @@ func NewBoolean(value bool) Expr {
 }
 
 func NewNumberLit(value float64) Expr { return &NumberLit{value} }
+
+func NewStringLit(value string) Expr { return &StringLit{value} }
 
 func NewLiteral(token Token) (Expr, error) {
 	switch token.tokenType {
@@ -41,6 +46,8 @@ func NewLiteral(token Token) (Expr, error) {
 		}
 	case Number:
 		return NewNumberLit(token.literal.(float64)), nil
+	case String:
+		return NewStringLit(token.literal.(string)), nil
 	default:
 		return nil, fmt.Errorf("unsupported token type: %s", token.lexeme)
 	}
@@ -55,6 +62,8 @@ func (nilExpr *Nil) Print() string {
 }
 
 func (numberExpr *NumberLit) Print() string { return formatFloatNumber(numberExpr.Value) }
+
+func (stringExpr *StringLit) Print() string { return stringExpr.Value }
 
 func printAST(expr Expr) string {
 	return expr.Print()
