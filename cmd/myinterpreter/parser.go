@@ -21,6 +21,10 @@ type StringLit struct {
 type Grouping struct {
 	Value Expr
 }
+type Unary struct {
+	Operator   Token
+	Expression Expr
+}
 type Nil struct{}
 
 func NewNil() Expr {
@@ -61,6 +65,10 @@ func NewGrouping(expr Expr) Expr {
 	return &Grouping{expr}
 }
 
+func NewUnary(op Token, exp Expr) Expr {
+	return &Unary{op, exp}
+}
+
 func (boolExpr *Boolean) Print() string {
 	return when(boolExpr.Value, "true", "false")
 }
@@ -74,6 +82,10 @@ func (numberExpr *NumberLit) Print() string { return formatFloatNumber(numberExp
 func (stringExpr *StringLit) Print() string { return stringExpr.Value }
 
 func (grouping *Grouping) Print() string { return "(group " + grouping.Value.Print() + ")" }
+
+func (unary *Unary) Print() string {
+	return fmt.Sprintf("(%s %s)", unary.Operator.lexeme, unary.Expression.Print())
+}
 
 func printAST(expr Expr) string {
 	return expr.Print()
@@ -128,6 +140,20 @@ func (p *Parser) isAtEnd() bool {
 	return p.currentToken().tokenType == EOF
 }
 
+func (p *Parser) MatchUnary() (Expr, error) {
+	if p.match(Bang) || p.match(Minus) {
+		op := p.previousToken()
+		expr, err := p.MatchUnary()
+		if err != nil {
+			return nil, err
+		}
+		res := NewUnary(op, expr)
+		return res, nil
+	} else {
+		return p.MatchPrimary()
+	}
+}
+
 func (p *Parser) MatchPrimary() (Expr, error) {
 	if p.match(LeftParen) {
 		expr, err := p.MatchExpr()
@@ -147,7 +173,7 @@ func (p *Parser) MatchPrimary() (Expr, error) {
 }
 
 func (p *Parser) MatchExpr() (Expr, error) {
-	return p.MatchPrimary()
+	return p.MatchUnary()
 }
 
 func parse(tokens []Token) {
